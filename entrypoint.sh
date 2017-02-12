@@ -8,7 +8,6 @@ MISSING=""
 
 [ -z "${DOMAIN}" ] && MISSING="${MISSING} DOMAIN"
 [ -z "${UPSTREAM}" ] && MISSING="${MISSING} UPSTREAM"
-[ -z "${EMAIL}" ] && MISSING="${MISSING} EMAIL"
 
 
 if [ "${MISSING}" != "" ]; then
@@ -33,9 +32,13 @@ if [ "${#DOMAINSARRAY[@]}" != "${#UPSTREAMARRAY[@]}" ]; then
 fi
 
 # Default other parameters
-
 SERVER=""
 [ -n "${STAGING:-}" ] && SERVER="--server https://acme-staging.api.letsencrypt.org/directory"
+
+DOMAINALIASARRAY=""
+[ -n "${DOMAINALIAS:-}" ] && DOMAINALIASARRAY=($(echo "${DOMAINALIAS}" | awk -F ";" '{for(i=1;i<=NF;i++) print $i;}')) && echo "Provided domains alias" && printf "%s\n" "${DOMAINALIASARRAY[@]}"
+
+[ -n "${DOMAINALIAS:-}" ] && [ -z "${EMAIL}" ] && MISSING="${MISSING} EMAIL"
 
 # Generate strong DH parameters for nginx, if they don't already exist.
 if [ ! -f /etc/ssl/dhparams.pem ]; then
@@ -43,9 +46,9 @@ if [ ! -f /etc/ssl/dhparams.pem ]; then
     cp /cache/dhparams.pem /etc/ssl/dhparams.pem
   else
     openssl dhparam -out /etc/ssl/dhparams.pem 2048
-    # Cache to a volume for next time?
+   # Cache to a volume for next time?
     if [ -d /cache ]; then
-      cp /etc/ssl/dhparams.pem /cache/dhparams.pem
+     cp /etc/ssl/dhparams.pem /cache/dhparams.pem
     fi
   fi
 fi
@@ -81,31 +84,58 @@ do
     src="/configs/${t}.conf"
   fi
 
-  echo "Rendering template of $t in $dest"
+  echo "Rendering template $src of $t in $dest"
   sed -e "s/\${DOMAIN}/${t}/g" \
       -e "s/\${UPSTREAM}/${UPSTREAMARRAY[upstreamId]}/" \
       -e "s/\${PATH}/${DOMAINSARRAY[0]}/" \
       "$src" > "$dest"
 
   upstreamId=$((upstreamId+1))
+done
+
+if [ ! -n "${DOMAINALIAS:-}" ]; then
+  echo Ready
+  # Launch nginx in the foreground
+  /usr/sbin/nginx -g "daemon off;"
+  exit 
+fi
+
+# Process ALIAS templates
+upstreamId=0
+letscmd=""
+for t in "${DOMAINALIASARRAY[@]}"
+do
+  dest="/etc/nginx/vhosts/$(basename "${t}").conf"
+  src="/templates/vhost.le-ssl.sample.conf"
+
+  if [ -r /configs/"${t}".conf ]; then
+    echo "Manual configuration found for $t"
+    src="/configs/${t}.conf"
+  fi
+
+  echo "Rendering template $src of $t in $dest"
+  sed -e "s/\${DOMAIN}/${t}/g" \
+      -e "s/\${UPSTREAM}/${UPSTREAMARRAY[upstreamId]}/" \
+      -e "s/\${PATH}/${DOMAINALIASARRAY[0]}/" \
+      "$src" > "$dest"
+
+  upstreamId=$((upstreamId+1))
 
   #prepare the letsencrypt command arguments
   letscmd="$letscmd -d $t "
-
 done
-
 
 # Check if the SAN list has changed
 if [ ! -f /etc/letsencrypt/san_list ]; then
  cat <<EOF >/etc/letsencrypt/san_list
- "${DOMAIN}"
+ "${DOMAINALIAS}"
 EOF
   fresh=true
-else 
+else
   old_san=$(cat /etc/letsencrypt/san_list)
-  if [ "${DOMAIN}" != "${old_san}" ]; then
+  if [ "${DOMAINALIAS}" != "${old_san}" ]; then
     fresh=true
-  else 
+  else
     fresh=false
   fi
 fi
@@ -114,19 +144,19 @@ fi
   if [ $fresh = true ]; then
     echo "The SAN list has changed, removing the old certificate and ask for a new one."
     rm -rf /etc/letsencrypt/{live,archive,keys,renewal}
-   
+
    echo "certbot certonly "${letscmd}" \
     --standalone --text \
     "${SERVER}" \
     --email "${EMAIL}" --agree-tos \
     --expand " > /etc/nginx/lets
-    
+
     echo "Running initial certificate request... "
     /bin/bash /etc/nginx/lets
   fi
 
 #update the stored SAN list
-echo "${DOMAIN}" > /etc/letsencrypt/san_list
+echo "${DOMAINALIAS}" > /etc/letsencrypt/san_list
 
 #Create the renewal directory (containing well-known challenges)
 mkdir -p /etc/letsencrypt/webrootauth/
