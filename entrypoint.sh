@@ -107,12 +107,12 @@ if [ "${LE_DOMAIN}" != "" ]; then
 # Check if the SAN list has changed
  if [ ! -f /etc/letsencrypt/san_list ]; then
   cat <<EOF >/etc/letsencrypt/san_list
-  "${SSL_DOMAIN}"
+  "${LE_DOMAIN}"
 EOF
    fresh=true
  else
    old_san=$(cat /etc/letsencrypt/san_list)
-   if [ "${SSL_DOMAIN}" != "${old_san}" ]; then
+   if [ "${LE_DOMAIN}" != "${old_san}" ]; then
      fresh=true
    else
      fresh=false
