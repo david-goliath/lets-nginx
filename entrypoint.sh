@@ -26,6 +26,11 @@ if [ "${MISSING}" != "" ]; then
   exit 1
 fi
 
+#Processing LE_DOMAIN into an array
+DOMAINSARRAY=($(echo "${LE_DOMAIN}" | awk -F ";" '{for(i=1;i<=NF;i++) print $i;}'))
+echo "Provided domains"
+printf "%s\n" "${DOMAINSARRAY[@]}"
+
 # Generate strong DH parameters for nginx, if they don't already exist.
 if [ ! -f /etc/ssl/dhparams.pem ]; then
   if [ -f /cache/dhparams.pem ]; then
@@ -81,28 +86,34 @@ if [ "${SSL_DOMAIN}" != "" ]; then
    exit 
  fi
 fi
+
 # Process LE SSL template
 
 if [ "${LE_DOMAIN}" != "" ]; then
 
   letscmd=""
-  dest="/etc/nginx/vhosts/$(basename "${LE_DOMAIN}").conf"
-  src="/templates/vhost.le-ssl.sample.conf"
+  for t in "${DOMAINSARRAY[@]}"
+  do
+    dest="/etc/nginx/vhosts/$(basename "${t}").conf"
+    src="/templates/vhost.le-ssl.sample.conf"
 
-  if [ -r /configs/"${LE_DOMAIN}".conf ]; then
-    echo "Manual configuration found for $t"
-    src="/configs/${LE_DOMAIN}.conf"
-  fi
+    if [ -r /configs/"${t}".conf ]; then
+      echo "Manual configuration found for $t"
+      src="/configs/${t}.conf"
+    fi
 
-  echo "Rendering template $src of $LE_DOMAIN in $dest"
-  sed -e "s/\${DOMAIN}/${LE_DOMAIN}/g" \
-      -e "s/\${UPSTREAM}/${UPSTREAM}/" \
-      -e "s/\${PATH}/${LE_DOMAIN}/" \
-      "$src" > "$dest"
+    echo "Rendering template $src of $t in $dest"
+    sed -e "s/\${DOMAIN}/${t}/g" \
+        -e "s/\${UPSTREAM}/${UPSTREAM}/" \
+        -e "s/\${PATH}/${DOMAINSARRAY[0]}/" \
+        "$src" > "$dest"
 
 
-#prepare the letsencrypt command arguments
-  letscmd="$letscmd -d $LE_DOMAIN "
+    #prepare the letsencrypt command arguments
+    letscmd="$letscmd -d $t "
+  done
+
+echo $letscmd
 
 # Check if the SAN list has changed
  if [ ! -f /etc/letsencrypt/san_list ]; then
@@ -139,7 +150,7 @@ EOF
 
 #Create the renewal directory (containing well-known challenges)
  mkdir -p /etc/letsencrypt/webrootauth/
-
+:
 # Template a cronjob to reissue the certificate with the webroot authenticator
  echo "Creating a cron job to keep the certificate updated"
   cat <<EOF >/etc/periodic/monthly/reissue
@@ -160,11 +171,11 @@ ${SERVER} \
 /usr/sbin/nginx -s reload
 EOF
 
- chmod +x /etc/periodic/monthly/reissue
+# chmod +x /etc/periodic/monthly/reissue
 
 # Kick off cron to reissue certificates as required
 # Background the process and log to stderr
- /usr/sbin/crond -f -d 8 &
+# /usr/sbin/crond -f -d 8 &
 
 fi #LE_DOMAIN Section
 
