@@ -171,11 +171,11 @@ ${SERVER} \
 /usr/sbin/nginx -s reload
 EOF
 
-# chmod +x /etc/periodic/monthly/reissue
+ chmod +x /etc/periodic/monthly/reissue
 
 # Kick off cron to reissue certificates as required
 # Background the process and log to stderr
-# /usr/sbin/crond -f -d 8 &
+ /usr/sbin/crond -f -d 8 &
 
 fi #LE_DOMAIN Section
 
