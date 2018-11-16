@@ -1,6 +1,14 @@
-# Let's Nginx
+# SSL production container
 
-*[dockerhub build](https://hub.docker.com/r/smashwilson/lets-nginx/)*
+Based on docker lets-nginx :  https://github.com/smashwilson/lets-nginx
+
+## fail2ban documentation
+
+You may want to create volume for `/var/log/nginx` in order to keep log files through container life.
+
+Config based on https://www.digitalocean.com/community/tutorials/how-to-protect-an-nginx-server-with-fail2ban-on-ubuntu-14-04
+
+## lets-nginx documentation
 
 Put browser-valid TLS termination in front of any Dockerized HTTP service with one command.
 
