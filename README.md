@@ -6,6 +6,8 @@ Based on docker lets-nginx :  https://github.com/smashwilson/lets-nginx
 
 You may want to create volume for `/var/log/nginx` in order to keep log files through container life.
 
+Also the container needs to be run with `NET_ADMIN` capability (see: https://github.com/moby/moby/issues/33605#issuecomment-307361421 )
+
 Config based on https://www.digitalocean.com/community/tutorials/how-to-protect-an-nginx-server-with-fail2ban-on-ubuntu-14-04
 
 ## lets-nginx documentation

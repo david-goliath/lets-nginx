@@ -6,8 +6,9 @@ MAINTAINER Tarik Benammar <tarik@benammar.com>
 RUN apk add --update bash \
   certbot \
   openssl openssl-dev ca-certificates \
-  fail2ban \
-  && rm -rf /var/cache/apk/*
+  fail2ban
+
+RUN rm -rf /var/cache/apk/*
 
 # fail2ban setup
 RUN rm /etc/fail2ban/jail.d/*
