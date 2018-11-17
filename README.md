@@ -1,112 +1,68 @@
 # SSL production container
 
+SSL production container use for rails application.
+
+Included :
+- nginx
+- fail2ban
+- let's encrypt
+- ssl certificate (without let's encrypt)
+
 Based on docker lets-nginx :  https://github.com/smashwilson/lets-nginx
 
 ## fail2ban documentation
 
-You may want to create volume for `/var/log/nginx` in order to keep log files through container life.
+Logs are stored in container `/var/log/fail2ban.log`
 
-Also the container needs to be run with `NET_ADMIN` capability (see: https://github.com/moby/moby/issues/33605#issuecomment-307361421 )
+Container needs to be run with `NET_ADMIN` capability (see: https://github.com/moby/moby/issues/33605#issuecomment-307361421 )
 
-Config based on https://www.digitalocean.com/community/tutorials/how-to-protect-an-nginx-server-with-fail2ban-on-ubuntu-14-04
+fail2ban nginx jail config is based on https://www.digitalocean.com/community/tutorials/how-to-protect-an-nginx-server-with-fail2ban-on-ubuntu-14-04
 
 ## lets-nginx documentation
 
-Put browser-valid TLS termination in front of any Dockerized HTTP service with one command.
+ENV var :
 
-```bash
-docker run --detach \
-  --name lets-nginx \
-  --link backend:backend \
-  --env EMAIL=me@email.com \
-  --env DOMAIN=mydomain.horse \
-  --env UPSTREAM=backend:8080 \
-  --publish 80:80 \
-  --publish 443:443 \
-  smashwilson/lets-nginx
+```
+EMAIL=me@email.com
+  // email use for let's encrypt
+LE_DOMAIN=mysite.com
+  // domain to setup with let's encrypt
+SSL_DOMAIN=mysite-custom-ssl.com
+  // this domain will not use let's encrypt
+  // but you have to provide the corresponding SSL certificate
+  // the SSL certificates failed should be accessible at the following path in the container
+  // certificate  : /etc/ssl/certs/${SSL_DOMAIN}/fullchain.crt
+  // key : /etc/ssl/certs/${SSL_DOMAIN}/privkey.key
+UPSTREAM=web:3000
+  // stream the webcontainer on port 3000
+STAGING=1
+  //uses the Let's Encrypt staging server instead of the production one.
 ```
 
-Issues certificates from [letsencrypt](https://letsencrypt.org/), installs them in [nginx](https://www.nginx.com/), and schedules a cron job to reissue them monthly.
+## example setup for docker-compose
 
-:zap: To run unattended, this container accepts the letsencrypt terms of service on your behalf. Make sure that the [subscriber agreement](https://letsencrypt.org/repository/) is acceptable to you before using this container. :zap:
-
-## Prerequisites
-
-Before you begin, you'll need:
-
- 1. A [place to run Docker containers](https://getcarina.com/) with a public IP.
- 2. A domain name with an *A record* pointing to your cluster.
-
-## Usage
-
-Launch your backend container and note its name, then launch `smashwilson/lets-nginx` with the following parameters:
-
- * `--link backend:backend` to link your backend service's container to this one. *(This may be unnecessary depending on Docker's [networking configuration](https://docs.docker.com/engine/userguide/networking/dockernetworks/).)*
- * `-e EMAIL=` your email address, used to register with letsencrypt.
- * `-e DOMAIN=` the domain name.
- * `-e UPSTREAM=` the name of your backend container and the port on which the service is listening.
- * `-p 80:80` and `-p 443:443` so that the letsencrypt client and nginx can bind to those ports on your public interface.
- * `-e STAGING=1` uses the Let's Encrypt *staging server* instead of the production one.
-            I highly recommend using this option to double check your infrastructure before you launch a real service.
-            Let's Encrypt rate-limits the production server to issuing
-            [five certificates per domain per seven days](https://community.letsencrypt.org/t/public-beta-rate-limits/4772/3),
-            which (as I discovered the hard way) you can quickly exhaust by debugging unrelated problems!
- * `-v {PATH_TO_CONFIGS}:/configs:ro` specify manual configurations for select domains.  Must be in the form {DOMAIN}.conf to be recognized.
-
-### Using more than one backend service
-
-You can distribute traffic to multiple upstream proxy destinations, chosen by the Host header. This is useful if you have more than one container you want to access with https.
-
-To do so, separate multiple corresponding values in the DOMAIN and UPSTREAM variables separated by a `;`:
-
-```bash
--e DOMAIN="domain1.com;sub.domain1.com;another.domain.net"
--e UPSTREAM="backend:8080;172.17.0.5:60;container:5000"
+```
+  ssl:
+    image: registry.domain.com:5000/${APP_NAME}_ssl
+    restart: always
+    environment:
+      - EMAIL=email@domain.com
+      - SSL_DOMAIN=${SSL_DOMAIN}
+      - LE_DOMAIN=${LE_DOMAIN}
+      - UPSTREAM=web:3000
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - ${IP}:80:80
+      - ${IP}:443:443
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs
+      - letsencrypt:/etc/letsencrypt
+      - letsencrypt_backups:/var/lib/letsencrypt
+      - dhparam_cache:/cache
+    depends_on:
+      - web
 ```
 
-## Caching the Certificates and/or DH Parameters
-
-Since `--link`s don't survive the re-creation of the target container, you'll need to coordinate re-creating
-the proxy container. In this case, you can cache the certificates and Diffie-Hellman parameters with the following procedure:
-
-Do this once:
-
-```bash
-docker volume create --name letsencrypt
-docker volume create --name letsencrypt-backups
-docker volume create --name dhparam-cache
-```
-
-Then start the container, attaching the volumes you just created:
-
-```bash
-docker run --detach \
-  --name lets-nginx \
-  --link backend:backend \
-  --env EMAIL=me@email.com \
-  --env DOMAIN=mydomain.horse \
-  --env UPSTREAM=backend:8080 \
-  --publish 80:80 \
-  --publish 443:443 \
-  --volume letsencrypt:/etc/letsencrypt \
-  --volume letsencrypt-backups:/var/lib/letsencrypt \
-  --volume dhparam-cache:/cache \
-  smashwilson/lets-nginx
-```
-
-## Adjusting Nginx configuration
-
-The entry point of this image processes the `nginx.conf` file in `/templates` and places the result in `/etc/nginx/nginx.conf`. Additionally, the file `/templates/vhost.sample.conf` will be processed once for each `;`-delimited pair of values in `$DOMAIN` and `$UPSTREAM`. The result of each will be placed at `/etc/nginx/vhosts/${DOMAINVALUE}.conf`.
-
-The following variable substitutions are made while processing all of these files:
-
-* `${DOMAIN}`
-* `${UPSTREAM}`
-
-For example, to adjust `nginx.conf`, create that file in your new image directory with the [baseline content](templates/nginx.conf) and desired modifications. Within your `Dockerfile` *ADD* this file and it will be used to create the nginx configuration instead.
-
-```docker
-FROM smashwilson/lets-nginx
-
-ADD nginx.conf /templates/nginx.conf
-```
+Notice that the volume defined are used to cache let's encrypt data and prevent 
+a new generation of let's encrypt certificate at each container restart
