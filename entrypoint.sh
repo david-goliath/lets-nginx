@@ -180,5 +180,9 @@ EOF
 fi #LE_DOMAIN Section
 
 echo Ready
+
+# Run fail2ban
+fail2ban-client -b -x start
+
 # Launch nginx in the foreground
 /usr/sbin/nginx -g "daemon off;"

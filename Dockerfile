@@ -6,11 +6,19 @@ MAINTAINER Tarik Benammar <tarik@benammar.com>
 RUN apk add --update bash \
   certbot \
   openssl openssl-dev ca-certificates \
-  && rm -rf /var/cache/apk/*
+  fail2ban
 
-# forward request and error logs to docker log collector
-RUN ln -sf /dev/stdout /var/log/nginx/access.log
-RUN ln -sf /dev/stderr /var/log/nginx/error.log
+RUN rm -rf /var/cache/apk/*
+
+RUN rm -f /var/log/nginx/* && \
+    touch /var/log/nginx/access.log && \
+    touch /var/log/nginx/error.log
+
+# fail2ban setup
+RUN rm /etc/fail2ban/jail.d/*
+COPY fail2ban/jail.local /etc/fail2ban/jail.d/
+COPY fail2ban/filter.d/* /etc/fail2ban/filter.d/
+RUN mkdir -p /var/run/fail2ban
 
 # used for webroot reauth
 RUN mkdir -p /etc/letsencrypt/webrootauth
