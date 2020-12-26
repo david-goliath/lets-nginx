@@ -145,6 +145,9 @@ EOF
      /bin/bash /etc/nginx/lets
    fi
 
+#Preparing for the ISRG Root transition (January 11 2021)
+ echo "preferred-chain = DST Root CA X3" > /etc/letsencrypt/cli.ini
+
 #update the stored SAN list
  echo "${LE_DOMAIN}" > /etc/letsencrypt/san_list
 
