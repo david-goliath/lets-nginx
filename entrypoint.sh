@@ -145,15 +145,15 @@ EOF
      /bin/bash /etc/nginx/lets
    fi
 
-#Preparing for the ISRG Root transition (January 11 2021)
- echo "preferred-chain = DST Root CA X3" > /etc/letsencrypt/cli.ini
-
 #update the stored SAN list
  echo "${LE_DOMAIN}" > /etc/letsencrypt/san_list
 
 #Create the renewal directory (containing well-known challenges)
  mkdir -p /etc/letsencrypt/webrootauth/
-:
+
+ #Preparing for the ISRG Root transition (January 11 2021)
+ echo "preferred-chain = DST Root CA X3" > /etc/letsencrypt/cli.ini
+
 # Template a cronjob to reissue the certificate with the webroot authenticator
  echo "Creating a cron job to keep the certificate updated"
   cat <<EOF >/etc/periodic/monthly/reissue
