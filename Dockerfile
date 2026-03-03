@@ -1,4 +1,4 @@
-FROM nginx:alpine
+FROM nginx:mainline-alpine
 MAINTAINER Tarik Benammar <tarik@benammar.com>
 
 #We need to install bash to easily handle arrays
@@ -16,6 +16,7 @@ RUN rm -f /var/log/nginx/* && \
 
 # fail2ban setup
 RUN rm /etc/fail2ban/jail.d/*
+RUN rm -rf /etc/fail2ban/filter.d/*
 COPY fail2ban/jail.local /etc/fail2ban/jail.d/
 COPY fail2ban/filter.d/* /etc/fail2ban/filter.d/
 RUN mkdir -p /var/run/fail2ban
